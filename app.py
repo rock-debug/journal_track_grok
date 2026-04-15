@@ -4,7 +4,6 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from sqlalchemy.orm import DeclarativeBase
-from flask_session import Session
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -26,24 +25,28 @@ app = Flask(__name__)
 import secrets
 app.secret_key = os.environ.get("SESSION_SECRET", secrets.token_hex(16))
 
-# Configure database
+# Configure database — use Supabase PostgreSQL (no SQLite fallback on serverless)
 database_url = os.environ.get("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance', 'research_assistant.db')
-os.makedirs(os.path.dirname(db_path), exist_ok=True)
-app.config["SQLALCHEMY_DATABASE_URI"] = database_url or f"sqlite:///{db_path}"
+if database_url:
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+else:
+    # Local fallback to SQLite
+    db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance', 'research_assistant.db')
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
 }
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# Configure session
-app.config["SESSION_TYPE"] = "filesystem"
+# Configure session — use signed cookies (works on serverless, no filesystem needed)
+app.config["SESSION_TYPE"] = "null"
 app.config["SESSION_PERMANENT"] = False
-Session(app)
 
 # Initialize database
 db.init_app(app)
@@ -56,7 +59,10 @@ login_manager.login_view = 'login'
 # Import models and create tables
 with app.app_context():
     from models import User, ResearchPaper, Patent, Note, Reminder
-    db.create_all()
+    try:
+        db.create_all()
+    except Exception as e:
+        logging.warning(f"Could not create tables (may already exist): {e}")
 
 # Import routes
 from routes import *
