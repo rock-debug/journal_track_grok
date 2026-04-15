@@ -1,7 +1,21 @@
+from flask import Flask, jsonify
 import sys
 import os
 
-# Add project root to Python path so all imports work
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+app = Flask(__name__)
 
-from app import app
+@app.route('/')
+def index():
+    return jsonify({
+        "status": "ok",
+        "message": "Vercel Python works!",
+        "python_version": sys.version
+    })
+
+@app.route('/health')
+def health():
+    return jsonify({"status": "healthy"})
+
+@app.route('/<path:path>')
+def catch_all(path):
+    return jsonify({"status": "ok", "path": path})
