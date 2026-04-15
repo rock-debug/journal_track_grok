@@ -135,7 +135,6 @@ def logout():
 
 # Chatbot route
 @app.route('/chat', methods=['POST'])
-@login_required
 def chat():
     import logging
     try:
@@ -154,17 +153,13 @@ def chat():
             
         logging.info(f"User message received: {user_message[:30]}...")
         
-        # Check API key
-        api_key = os.environ.get("GOOGLE_API_KEY", "")
-        logging.info(f"API key configured: {bool(api_key)}")
-        if api_key:
-            logging.info(f"API key length: {len(api_key)}")
+        # Determine user ID (use 'anonymous' for non-logged-in users)
+        user_id = current_user.id if current_user.is_authenticated else "anonymous"
         
-        # Handle special case for paper ID summarization
+        # Handle special case for paper ID summarization (only for logged-in users)
         lower_msg = user_message.lower()
-        if ("summarize" in lower_msg or "summary" in lower_msg) and ("with id" in lower_msg or "paper id" in lower_msg):
+        if current_user.is_authenticated and ("summarize" in lower_msg or "summary" in lower_msg) and ("with id" in lower_msg or "paper id" in lower_msg):
             try:
-                # Extract paper ID
                 paper_id = None
                 words = lower_msg.split()
                 for i, word in enumerate(words):
@@ -174,7 +169,7 @@ def chat():
                 
                 if paper_id:
                     paper = ResearchPaper.query.get(paper_id)
-                    if paper:  # Allow summarizing any paper, regardless of who added it
+                    if paper:
                         if paper.abstract:
                             result = summarize_paper(paper.abstract)
                             return jsonify({'response': f"Summary of paper '{paper.title}':\n\n{result['summary']}"})
@@ -183,7 +178,7 @@ def chat():
             except Exception as e:
                 logging.error(f"Error processing paper ID: {str(e)}")
         
-        # NEW: Use intent detection system
+        # Use intent detection system
         logging.info("Using NLP intent detection for message")
         intent, params, confidence = detect_intent(user_message)
         
@@ -194,7 +189,6 @@ def chat():
             logging.info(f"Processing intent: {intent}")
             result = execute_intent(intent, params)
             
-            # Format the response based on the task
             if 'task' in result:
                 if result['task'] == 'summary':
                     return jsonify({'response': f"Here's a summary:\n\n{result['summary']}"})
@@ -209,14 +203,13 @@ def chat():
                 elif result['task'] in ['how_to_add_paper', 'how_to_add_patent', 'how_to_add_note']:
                     return jsonify({'response': result['response']})
                 else:
-                    # For other tasks or generic responses
                     response_text = result.get('response', 'I understand your request.')
                     return jsonify({'response': response_text})
         
-        # Default: Get regular chatbot response if no intent was detected with high confidence
-        logging.info(f"No specific intent detected with high confidence, sending to Gemini API")
-        response = get_groq_response(user_message, current_user.id)
-        logging.info("Successfully received response from Gemini API")
+        # Default: Get regular chatbot response via Groq
+        logging.info("No specific intent detected, sending to Groq API")
+        response = get_groq_response(user_message, user_id)
+        logging.info("Successfully received response from Groq API")
         
         return jsonify({'response': response})
     except Exception as e:
