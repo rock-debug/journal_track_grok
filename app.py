@@ -1,6 +1,7 @@
 import os
 import logging
-from flask import Flask
+import secrets
+from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from sqlalchemy.orm import DeclarativeBase
@@ -20,24 +21,24 @@ db = SQLAlchemy(model_class=Base)
 
 # Create Flask app
 app = Flask(__name__)
-
-# Generate a random secret key if one isn't set
-import secrets
 app.secret_key = os.environ.get("SESSION_SECRET", secrets.token_hex(16))
 
-# Configure database — use Supabase PostgreSQL (no SQLite fallback on serverless)
+# Configure database
 database_url = os.environ.get("DATABASE_URL")
-if database_url and database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql+pg8000://", 1)
-elif database_url and database_url.startswith("postgresql://"):
-    database_url = database_url.replace("postgresql://", "postgresql+pg8000://", 1)
-
 if database_url:
+    # Force pg8000 driver for PostgreSQL (pure Python, no C compiler needed)
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql+pg8000://", 1)
+    elif database_url.startswith("postgresql://") and "+pg8000" not in database_url:
+        database_url = database_url.replace("postgresql://", "postgresql+pg8000://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 else:
-    # Local fallback to SQLite
+    # Local-only SQLite fallback
     db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance', 'research_assistant.db')
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    try:
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    except OSError:
+        pass
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
@@ -45,10 +46,6 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
 }
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-# Configure session — use signed cookies (works on serverless, no filesystem needed)
-app.config["SESSION_TYPE"] = "null"
-app.config["SESSION_PERMANENT"] = False
 
 # Initialize database
 db.init_app(app)
@@ -60,14 +57,37 @@ login_manager.login_view = 'login'
 
 # Import models and create tables
 with app.app_context():
-    from models import User, ResearchPaper, Patent, Note, Reminder
     try:
+        from models import User, ResearchPaper, Patent, Note, Reminder
         db.create_all()
+        logging.info("Database tables created successfully")
     except Exception as e:
-        logging.warning(f"Could not create tables (may already exist): {e}")
+        logging.warning(f"Could not create tables: {e}")
+
+# Debug health check route (defined before importing routes to ensure it always works)
+@app.route('/health')
+def health_check():
+    info = {
+        "status": "ok",
+        "database_url_set": bool(os.environ.get("DATABASE_URL")),
+        "groq_key_set": bool(os.environ.get("GROQ_API_KEY")),
+        "session_secret_set": bool(os.environ.get("SESSION_SECRET")),
+        "python_version": __import__('sys').version,
+    }
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        info["database_connected"] = True
+    except Exception as e:
+        info["database_connected"] = False
+        info["database_error"] = str(e)
+    return jsonify(info)
 
 # Import routes
-from routes import *
+try:
+    from routes import *
+    logging.info("Routes imported successfully")
+except Exception as e:
+    logging.error(f"Failed to import routes: {e}")
 
 @login_manager.user_loader
 def load_user(user_id):
