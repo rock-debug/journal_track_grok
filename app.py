@@ -28,7 +28,9 @@ app.secret_key = os.environ.get("SESSION_SECRET", secrets.token_hex(16))
 # Configure database — use Supabase PostgreSQL (no SQLite fallback on serverless)
 database_url = os.environ.get("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
+    database_url = database_url.replace("postgres://", "postgresql+pg8000://", 1)
+elif database_url and database_url.startswith("postgresql://"):
+    database_url = database_url.replace("postgresql://", "postgresql+pg8000://", 1)
 
 if database_url:
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
