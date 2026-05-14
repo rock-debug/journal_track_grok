@@ -18,6 +18,66 @@ def generate_response(prompt):
         logging.error(f"Error generating response: {str(e)}")
         return "Unable to generate response at this time."
 
+def find_relevant_papers_tfidf(query: str, top_k: int = 3) -> str:
+    """
+    Find relevant papers using TF-IDF and Cosine Similarity
+    
+    Args:
+        query: The search query
+        top_k: Number of papers to return
+        
+    Returns:
+        String containing formatted paper context
+    """
+    from models import ResearchPaper
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+    except ImportError:
+        logging.error("scikit-learn is not installed.")
+        return ""
+        
+    try:
+        papers = ResearchPaper.query.all()
+        if not papers:
+            return ""
+            
+        corpus = []
+        paper_list = []
+        
+        for paper in papers:
+            text = f"{paper.title} {paper.keywords or ''} {paper.abstract or ''}".lower()
+            corpus.append(text)
+            paper_list.append(paper)
+            
+        vectorizer = TfidfVectorizer(stop_words='english')
+        tfidf_matrix = vectorizer.fit_transform(corpus)
+        query_vec = vectorizer.transform([query.lower()])
+        
+        similarities = cosine_similarity(query_vec, tfidf_matrix).flatten()
+        
+        if len(similarities) == 0:
+            return ""
+            
+        top_indices = similarities.argsort()[-top_k:][::-1]
+        
+        context_str = ""
+        for idx in top_indices:
+            if similarities[idx] > 0.05: # minimum similarity threshold
+                p = paper_list[idx]
+                context_str += f"Title: {p.title}\n"
+                context_str += f"Authors: {p.authors}\n"
+                context_str += f"Year: {p.year}\n"
+                if p.abstract:
+                    context_str += f"Abstract: {p.abstract}\n"
+                context_str += "\n"
+                
+        return context_str.strip()
+    except Exception as e:
+        logging.error(f"Error in TF-IDF retrieval: {str(e)}")
+        return ""
+
+
 def summarize_paper(paper_text: str) -> dict:
     """
     Generate a concise summary of a scientific paper
@@ -89,33 +149,60 @@ def recommend_papers(topic: str) -> dict:
     
     # First try to find papers in our database that match the topic
     try:
-        # Use a simple keyword-based search
-        topic_keywords = topic.lower().split()
         matching_papers = []
-        
-        # Get all papers from the database - we'll try to get papers that are shared by all users
-        # This avoids needing current_user which requires the app context
         all_papers = ResearchPaper.query.all()
         
-        for paper in all_papers:
-            # Check if any keywords match in title, keywords, or abstract
-            paper_text = f"{paper.title} {paper.keywords or ''} {paper.abstract or ''}".lower()
+        # Alternative: Use TF-IDF if scikit-learn is available
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
             
-            # Calculate a simple relevance score based on keyword matches
-            relevance = sum(1 for keyword in topic_keywords if keyword in paper_text)
+            corpus = []
+            paper_list = []
+            for paper in all_papers:
+                text = f"{paper.title} {paper.keywords or ''} {paper.abstract or ''}".lower()
+                corpus.append(text)
+                paper_list.append(paper)
+                
+            vectorizer = TfidfVectorizer(stop_words='english')
+            tfidf_matrix = vectorizer.fit_transform(corpus)
+            query_vec = vectorizer.transform([topic.lower()])
+            similarities = cosine_similarity(query_vec, tfidf_matrix).flatten()
             
-            if relevance > 0:
-                matching_papers.append({
-                    'title': paper.title,
-                    'authors': paper.authors,
-                    'year': paper.year,
-                    'publication': paper.publication,
-                    'relevance': relevance,
-                    'abstract': paper.abstract
-                })
-        
-        # Sort by relevance score
-        matching_papers.sort(key=lambda x: x['relevance'], reverse=True)
+            # Sort by similarity score
+            top_indices = similarities.argsort()[::-1]
+            for idx in top_indices:
+                if similarities[idx] > 0.01:
+                    matching_papers.append({
+                        'title': paper_list[idx].title,
+                        'authors': paper_list[idx].authors,
+                        'year': paper_list[idx].year,
+                        'publication': paper_list[idx].publication,
+                        'relevance': similarities[idx],
+                        'abstract': paper_list[idx].abstract
+                    })
+        except ImportError:
+            # Fallback to simple keyword search
+            topic_keywords = topic.lower().split()
+            for paper in all_papers:
+                # Check if any keywords match in title, keywords, or abstract
+                paper_text = f"{paper.title} {paper.keywords or ''} {paper.abstract or ''}".lower()
+                
+                # Calculate a simple relevance score based on keyword matches
+                relevance = sum(1 for keyword in topic_keywords if keyword in paper_text)
+                
+                if relevance > 0:
+                    matching_papers.append({
+                        'title': paper.title,
+                        'authors': paper.authors,
+                        'year': paper.year,
+                        'publication': paper.publication,
+                        'relevance': relevance,
+                        'abstract': paper.abstract
+                    })
+            
+            # Sort by relevance score
+            matching_papers.sort(key=lambda x: x['relevance'], reverse=True)
         
         if matching_papers:
             # Format the results
@@ -206,12 +293,17 @@ def answer_research_question(question: str, context: str = "") -> dict:
     Returns:
         Dictionary containing the answer
     """
+    # If no context provided, try to find some using TF-IDF
+    if not context:
+        context = find_relevant_papers_tfidf(question, top_k=2)
+        
     prompt = f"""
     You are a helpful AI assistant answering a research-related question.
-    Context (optional): {context}
+    Context from the user's research database (optional): 
+    {context}
 
     Question: {question}
-    Answer in 2-3 sentences.
+    Answer in 2-3 sentences. If the context is provided, try to ground your answer in the context.
     """
     response = generate_response(prompt)
     return {

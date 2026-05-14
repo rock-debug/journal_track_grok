@@ -34,7 +34,6 @@
                             <i class="fas fa-home me-1"></i> Home
                         </a>
                     </li>
-                    {% if current_user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'papers' %}active{% endif %}" href="{{ url_for('papers') }}">
                             <i class="fas fa-file-alt me-1"></i> Papers
@@ -45,6 +44,7 @@
                             <i class="fas fa-certificate me-1"></i> Patents
                         </a>
                     </li>
+                    {% if current_user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'notes' %}active{% endif %}" href="{{ url_for('notes') }}">
                             <i class="fas fa-sticky-note me-1"></i> Notes

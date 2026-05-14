@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import render_template, request, redirect, url_for, flash, jsonify, send_file, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
-from app import app, db
+from app import app, db, metrics
 from models import User, ResearchPaper, Patent, Note, Reminder
 from groq_service import get_groq_response
 from research_service import search_papers, search_patents, get_doi_metadata, format_citation
@@ -14,7 +14,7 @@ from chatbot_utils import (
     summarize_paper, generate_citation as ai_generate_citation, 
     recommend_papers, suggest_next_milestone, answer_research_question,
     explain_add_paper, explain_add_patent, explain_add_note,
-    detect_intent, execute_intent
+    detect_intent, execute_intent, find_relevant_papers_tfidf
 )
 
 # Home route
@@ -93,6 +93,7 @@ def login():
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
+@metrics.counter('app_user_registrations_total', 'Total number of user registrations')
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
@@ -135,6 +136,7 @@ def logout():
 
 # Chatbot route
 @app.route('/chat', methods=['POST'])
+@metrics.counter('app_ai_chat_requests_total', 'Total number of AI chat requests processed')
 def chat():
     import logging
     try:
@@ -208,7 +210,13 @@ def chat():
         
         # Default: Get regular chatbot response via Groq
         logging.info("No specific intent detected, sending to Groq API")
-        response = get_groq_response(user_message, user_id)
+        
+        # Implementation of RAG for generic queries
+        rag_context = find_relevant_papers_tfidf(user_message, top_k=3)
+        if rag_context:
+            logging.info("Successfully retrieved RAG context using TF-IDF")
+            
+        response = get_groq_response(user_message, user_id, context=rag_context)
         logging.info("Successfully received response from Groq API")
         
         return jsonify({'response': response})
@@ -218,7 +226,6 @@ def chat():
 
 # Research Papers routes
 @app.route('/papers')
-@login_required
 def papers():
     # Show all papers regardless of user_id
     papers = ResearchPaper.query.order_by(ResearchPaper.date_added.desc()).all()
@@ -226,6 +233,7 @@ def papers():
 
 @app.route('/papers/add', methods=['POST'])
 @login_required
+@metrics.counter('app_papers_added_total', 'Total number of research papers added by users')
 def add_paper():
     title = request.form.get('title')
     authors = request.form.get('authors')
@@ -315,7 +323,6 @@ def generate_citation():
 
 # Patents routes
 @app.route('/patents')
-@login_required
 def patents():
     # Show all patents regardless of user_id
     patents = Patent.query.order_by(Patent.date_added.desc()).all()
@@ -323,6 +330,7 @@ def patents():
 
 @app.route('/patents/add', methods=['POST'])
 @login_required
+@metrics.counter('app_patents_added_total', 'Total number of patents added by users')
 def add_patent():
     title = request.form.get('title')
     patent_number = request.form.get('patent_number')

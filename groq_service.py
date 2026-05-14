@@ -78,7 +78,7 @@ def set_chat_history(user_id, history):
     except Exception:
         pass
 
-def get_groq_response(user_message, user_id):
+def get_groq_response(user_message, user_id, context=""):
     """
     Get response from Groq API using the official Python SDK.
     Uses llama-3.3-70b-versatile model for fast, high-quality responses.
@@ -93,7 +93,11 @@ def get_groq_response(user_message, user_id):
     chat_history = get_chat_history(user_id)
 
     # Build messages list with system prompt, history, and current message
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    updated_system_prompt = SYSTEM_PROMPT
+    if context:
+        updated_system_prompt += f"\n\nUse the following retrieved context to help answer the user's question:\n{context}"
+        
+    messages = [{"role": "system", "content": updated_system_prompt}]
 
     # Add recent chat history for context (last 10 exchanges)
     for entry in chat_history[-10:]:
