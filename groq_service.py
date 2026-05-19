@@ -121,5 +121,6 @@ def get_groq_response(user_message, user_id, context=""):
         return text_response
 
     except Exception as e:
-        logging.error(f"Exception during Groq API call: {str(e)}")
-        return generate_fallback_response(user_message)
+        error_msg = str(e)
+        logging.error(f"Exception during Groq API call: {error_msg}")
+        return f"Groq API Error: {error_msg}. Please check your API key and try again."
