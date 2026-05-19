@@ -21,7 +21,7 @@ spec:
       containers:
       - name: journal-tracker
         image: journal-tracker:latest
-        imagePullPolicy: Never
+        imagePullPolicy: Always
         ports:
         - containerPort: 5000
         envFrom:

@@ -47,18 +47,16 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                echo "Deploying real Flask application from Docker Hub to K3s Kubernetes cluster"
+                echo "Deploying infrastructure declaratively to K3s Kubernetes cluster"
                 kubectl get nodes
                 
-                # Delete any old local deployment if it exists to ensure it pulls fresh from Docker Hub
-                kubectl delete deployment journal-tracker --ignore-not-found=true
+                # Apply all Kubernetes manifests (Deployment, Service, Ingress)
+                kubectl apply -f k8s/
                 
-                # Create deployment using Docker Hub image
-                kubectl create deployment journal-tracker \
-                  --image=$DOCKER_IMAGE:$DOCKER_TAG \
-                  --replicas=2
+                # Dynamically set the Docker image so it pulls the freshly built one
+                kubectl set image deployment/journal-tracker-deployment journal-tracker=$DOCKER_IMAGE:$DOCKER_TAG
                 
-                kubectl rollout status deployment/journal-tracker --timeout=60s 2>/dev/null || echo "Deployment updated"
+                kubectl rollout status deployment/journal-tracker-deployment --timeout=60s
                 kubectl get pods -l app=journal-tracker
                 '''
             }
