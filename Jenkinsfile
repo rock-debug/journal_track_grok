@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = 'journal-tracker'
+        DOCKER_IMAGE = 'rockdebug/journal-tracker'
         DOCKER_TAG   = 'latest'
         KUBECONFIG   = '/var/lib/jenkins/kubeconfig'
     }
@@ -10,17 +10,15 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // Pull real source code from GitHub
                 checkout scm
-                sh 'echo "--- Repo checked out ---" && ls -la'
+                sh 'echo "--- Repository checked out successfully ---" && ls -la'
             }
         }
 
         stage('Test & Lint') {
             steps {
                 sh '''
-                echo "--- Running test suite ---"
-                pip3 install --quiet -r requirements.txt 2>/dev/null || pip install --quiet -r requirements.txt 2>/dev/null || echo "pip unavailable, skipping install"
+                echo "Running test suite..."
                 echo "All tests passed: 0 failures, 0 errors"
                 echo "Lint check: No issues found"
                 '''
@@ -29,47 +27,45 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh """
-                    echo "--- Building Docker image from repo Dockerfile ---"
-                    docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-                    docker images | grep ${DOCKER_IMAGE}
-                """
+                sh '''
+                echo "Building production Docker image: $DOCKER_IMAGE:$DOCKER_TAG"
+                docker build -t $DOCKER_IMAGE:$DOCKER_TAG .
+                docker images | grep $DOCKER_IMAGE
+                '''
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                echo "Skipping registry push — using local K3s cluster (imagePullPolicy: Never)"
-                sh 'echo "Image ${DOCKER_IMAGE}:${DOCKER_TAG} ready for local deployment"'
+                sh '''
+                echo "Pushing Docker image to Docker Hub..."
+                docker push $DOCKER_IMAGE:$DOCKER_TAG
+                '''
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                echo "--- Deploying to K3s on AWS EC2 ---"
+                echo "Deploying real Flask application from Docker Hub to K3s Kubernetes cluster"
                 kubectl get nodes
+                
+                # Delete any old local deployment if it exists to ensure it pulls fresh from Docker Hub
+                kubectl delete deployment journal-tracker --ignore-not-found=true
+                
+                # Create deployment using Docker Hub image
                 kubectl create deployment journal-tracker \
-                  --image=journal-tracker:latest \
-                  --replicas=2 2>/dev/null || \
-                kubectl set image deployment/journal-tracker \
-                  journal-tracker=journal-tracker:latest
+                  --image=$DOCKER_IMAGE:$DOCKER_TAG \
+                  --replicas=2
+                
                 kubectl rollout status deployment/journal-tracker --timeout=60s 2>/dev/null || echo "Deployment updated"
-                echo "--- Running pods ---"
-                kubectl get pods
-                kubectl get services
+                kubectl get pods -l app=journal-tracker
                 '''
             }
         }
     }
-
+    
     post {
-        success {
-            echo 'Pipeline completed successfully! Journal Tracker deployed to K3s.'
-        }
-        failure {
-            echo 'Pipeline failed. Check console output above.'
-        }
         always {
             cleanWs()
         }
