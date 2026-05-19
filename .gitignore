@@ -40,3 +40,10 @@ replit.nix
 attached_assets/
 uv.lock
 *.png
+
+# Terraform
+terraform/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/*.pem
+terraform/.terraform.lock.hcl
