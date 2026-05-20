@@ -98,20 +98,17 @@ resource "aws_security_group" "app_sg" {
   }
 }
 
-# EC2 Instance (Free Tier Eligible)
 resource "aws_instance" "app_server" {
   ami           = data.aws_ami.ubuntu.id
-  instance_type = "m7i-flex.large" # Free Tier eligible
+  instance_type = "m7i-flex.large" 
   key_name      = aws_key_pair.key_pair.key_name
   vpc_security_group_ids = [aws_security_group.app_sg.id]
 
-  # Allocate 20GB of storage (Free tier allows up to 30GB)
+
   root_block_device {
     volume_size = 20 
     volume_type = "gp3"
   }
-
-  # Bootstrap script — installs the entire DevOps toolchain on first boot
   user_data = <<-EOF
     #!/bin/bash
     set -e
@@ -151,10 +148,10 @@ resource "aws_instance" "app_server" {
     sed -i 's/127.0.0.1/localhost/g' /home/ubuntu/.kube/config
 
     echo "=== [6/6] Installing Jenkins ==="
-    wget -O /usr/share/keyrings/jenkins-keyring.asc https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+    wget -O /usr/share/keyrings/jenkins-keyring.asc https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
     echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/" | tee /etc/apt/sources.list.d/jenkins.list > /dev/null
     apt-get update -y
-    apt-get install -y openjdk-17-jre jenkins
+    apt-get install -y openjdk-21-jre jenkins
     usermod -aG docker jenkins
     systemctl enable jenkins
     systemctl start jenkins
