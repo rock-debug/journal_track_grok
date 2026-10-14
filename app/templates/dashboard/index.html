@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Journal & Patent Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1"><i class="fa-solid fa-gauge-high text-primary me-2"></i>Research Dashboard</h2>
+        <p class="text-muted mb-0">Overview of your saved literature, patents, notes, and AI research tools.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('papers.create') }}" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i>Add Paper</a>
+        <a href="{{ url_for('search.crossref') }}" class="btn btn-outline-info btn-sm"><i class="fa-solid fa-magnifying-glass me-1"></i>Search Papers</a>
+        <a href="{{ url_for('patents.index') }}" class="btn btn-outline-light btn-sm"><i class="fa-solid fa-lightbulb me-1"></i>Manage Patents</a>
+        <a href="{{ url_for('notes.index') }}" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-note-sticky me-1"></i>Notes</a>
+        <a href="{{ url_for('reminders.index') }}" class="btn btn-outline-warning btn-sm"><i class="fa-solid fa-bell me-1"></i>Reminders</a>
+        <a href="{{ url_for('ai.index') }}" class="btn btn-info btn-sm"><i class="fa-solid fa-robot me-1"></i>AI Assistant</a>
+        <div class="dropdown">
+            <button class="btn btn-success btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="fa-solid fa-file-csv me-1"></i>Export CSV
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark">
+                <li><a class="dropdown-item" href="{{ url_for('export.export_papers') }}"><i class="fa-solid fa-book me-2"></i>Papers CSV</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('export.export_patents') }}"><i class="fa-solid fa-lightbulb me-2"></i>Patents CSV</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card card-hover h-100 border-start border-4 border-primary">
+            <div class="card-body d-flex align-items-center justify-content-between">
+                <div>
+                    <h6 class="text-muted text-uppercase fw-semibold fs-7 mb-1">Total Papers</h6>
+                    <h2 class="fw-bold mb-0">{{ total_papers }}</h2>
+                </div>
+                <div class="stat-card-icon text-primary">
+                    <i class="fa-solid fa-book-bookmark"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-hover h-100 border-start border-4 border-info">
+            <div class="card-body d-flex align-items-center justify-content-between">
+                <div>
+                    <h6 class="text-muted text-uppercase fw-semibold fs-7 mb-1">Total Patents</h6>
+                    <h2 class="fw-bold mb-0">{{ total_patents }}</h2>
+                </div>
+                <div class="stat-card-icon text-info">
+                    <i class="fa-solid fa-lightbulb"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-hover h-100 border-start border-4 border-success">
+            <div class="card-body d-flex align-items-center justify-content-between">
+                <div>
+                    <h6 class="text-muted text-uppercase fw-semibold fs-7 mb-1">Total Notes</h6>
+                    <h2 class="fw-bold mb-0">{{ total_notes }}</h2>
+                </div>
+                <div class="stat-card-icon text-success">
+                    <i class="fa-solid fa-sticky-note"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-hover h-100 border-start border-4 border-warning">
+            <div class="card-body d-flex align-items-center justify-content-between">
+                <div>
+                    <h6 class="text-muted text-uppercase fw-semibold fs-7 mb-1">Pending Reminders</h6>
+                    <h2 class="fw-bold mb-0">{{ pending_reminders }}</h2>
+                </div>
+                <div class="stat-card-icon text-warning">
+                    <i class="fa-solid fa-bell"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-secondary border-bottom border-dark-subtle d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 fw-bold"><i class="fa-solid fa-book-open text-primary me-2"></i>Recently Added Papers</h5>
+                <a href="{{ url_for('papers.index') }}" class="btn btn-link btn-sm text-primary p-0">View All</a>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_papers %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle fs-7">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Journal / Year</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in recent_papers %}
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold text-light text-truncate" style="max-width: 260px;">{{ p.title }}</div>
+                                    <small class="text-muted">{{ p.authors or 'No author specified' }}</small>
+                                </td>
+                                <td>
+                                    <div>{{ p.journal or 'N/A' }}</div>
+                                    <small class="text-muted">{{ p.publication_year or '' }}</small>
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('papers.detail', paper_id=p.id) }}" class="btn btn-outline-primary btn-sm px-2 py-1">View</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-4 text-center text-muted">
+                    <i class="fa-solid fa-folder-open fs-2 mb-2 d-block opacity-50"></i>
+                    No research papers added yet.
+                    <div class="mt-2">
+                        <a href="{{ url_for('papers.create') }}" class="btn btn-primary btn-sm">Add First Paper</a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-secondary border-bottom border-dark-subtle d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 fw-bold"><i class="fa-solid fa-certificate text-info me-2"></i>Recently Added Patents</h5>
+                <a href="{{ url_for('patents.index') }}" class="btn btn-link btn-sm text-info p-0">View All</a>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_patents %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle fs-7">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Patent No.</th>
+                                <th>Filing Date</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pat in recent_patents %}
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold text-light text-truncate" style="max-width: 240px;">{{ pat.title }}</div>
+                                </td>
+                                <td><span class="badge bg-secondary border">{{ pat.patent_number or 'N/A' }}</span></td>
+                                <td><small class="text-muted">{{ pat.filing_date or 'N/A' }}</small></td>
+                                <td>
+                                    <a href="{{ url_for('patents.edit', patent_id=pat.id) }}" class="btn btn-outline-info btn-sm px-2 py-1">Edit</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-4 text-center text-muted">
+                    <i class="fa-solid fa-lightbulb fs-2 mb-2 d-block opacity-50"></i>
+                    No patents tracked yet.
+                    <div class="mt-2">
+                        <a href="{{ url_for('patents.create') }}" class="btn btn-outline-info btn-sm">Add Patent</a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

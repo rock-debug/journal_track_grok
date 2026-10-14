@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard - User Management{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1"><i class="fa-solid fa-user-shield text-warning me-2"></i>Admin Dashboard</h2>
+        <p class="text-muted mb-0">System administration and user role management.</p>
+    </div>
+    <span class="badge bg-warning text-dark px-3 py-2 fs-7"><i class="fa-solid fa-shield-halved me-1"></i>Administrator Access</span>
+</div>
+
+<div class="card shadow-lg border-0">
+    <div class="card-header bg-secondary fw-bold text-light">
+        <i class="fa-solid fa-users me-2 text-warning"></i>Registered Platform Users ({{ users | length }})
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Created Date</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td>#{{ u.id }}</td>
+                        <td>
+                            <div class="fw-bold">{{ u.username }}</div>
+                            {% if u.id == current_user.id %}
+                            <span class="badge bg-primary fs-8">You</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ u.email }}</td>
+                        <td>
+                            {% if u.role == 'admin' %}
+                            <span class="badge bg-warning text-dark"><i class="fa-solid fa-shield-halved me-1"></i>Admin</span>
+                            {% else %}
+                            <span class="badge bg-secondary"><i class="fa-solid fa-user me-1"></i>Researcher</span>
+                            {% endif %}
+                        </td>
+                        <td><small class="text-muted">{{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else 'N/A' }}</small></td>
+                        <td class="text-end">
+                            {% if u.id != current_user.id %}
+                            <div class="d-inline-flex gap-2">
+                                <form method="POST" action="{{ url_for('admin.change_role', user_id=u.id) }}" class="d-inline">
+                                    <input type="hidden" name="role" value="{% if u.role == 'admin' %}researcher{% else %}admin{% endif %}">
+                                    <button type="submit" class="btn btn-outline-warning btn-sm">
+                                        Toggle Role ({% if u.role == 'admin' %}Demote{% else %}Promote{% endif %})
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('admin.delete_user', user_id=u.id) }}" class="d-inline" onsubmit="return confirm('Permanently delete user {{ u.username }} and all associated data?');">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                                        <i class="fa-solid fa-user-slash me-1"></i>Delete
+                                    </button>
+                                </form>
+                            </div>
+                            {% else %}
+                            <span class="text-muted fs-7">N/A</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

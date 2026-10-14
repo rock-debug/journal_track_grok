@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+
+{% block title %}AI Assistant - Journal & Patent Tracker{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2 class="fw-bold mb-1"><i class="fa-solid fa-robot text-info me-2"></i>AI Research Assistant Hub</h2>
+    <p class="text-muted">Powered by Groq SDK & Llama 3.3 model with local TF-IDF Retrieval-Augmented Generation (RAG).</p>
+</div>
+
+<ul class="nav nav-tabs border-dark-subtle mb-4" id="aiTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active text-light fw-semibold" id="rag-tab" data-bs-toggle="tab" data-bs-target="#rag-tab-pane" type="button" role="tab">
+            <i class="fa-solid fa-comments me-2 text-info"></i>RAG Question Answering
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link text-light fw-semibold" id="rec-tab" data-bs-toggle="tab" data-bs-target="#rec-tab-pane" type="button" role="tab">
+            <i class="fa-solid fa-wand-magic-sparkles me-2 text-warning"></i>Research Recommendations
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link text-light fw-semibold" id="summarize-tab" data-bs-toggle="tab" data-bs-target="#summarize-tab-pane" type="button" role="tab">
+            <i class="fa-solid fa-book-open me-2 text-primary"></i>Paper Summarizer & Citations
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="aiTabContent">
+    <div class="tab-pane fade show active" id="rag-tab-pane" role="tabpanel" tabindex="0">
+        <div class="card shadow-lg border-0 mb-4">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-2"><i class="fa-solid fa-brain text-info me-2"></i>Ask Questions Over Your Saved Papers</h5>
+                <p class="text-muted fs-7 mb-4">The TF-IDF engine indexes your saved papers, extracts relevant context chunks, and queries Groq Llama 3.3 to answer strictly based on your research library.</p>
+
+                <div class="mb-3">
+                    <label for="ragQuestionInput" class="form-label fw-bold">Your Question</label>
+                    <div class="input-group input-group-lg">
+                        <input type="text" id="ragQuestionInput" class="form-control bg-dark text-light border-dark" placeholder="e.g. What methodologies are used in my papers related to neural networks?" required>
+                        <button class="btn btn-info px-4" id="ragSubmitBtn" type="button" onclick="askRAGQuestion()">
+                            <i class="fa-solid fa-paper-plane me-1"></i>Ask AI
+                        </button>
+                    </div>
+                </div>
+
+                <div id="ragResultArea" class="d-none mt-4">
+                    <div class="p-4 bg-secondary rounded border border-info shadow-sm mb-3">
+                        <h6 class="text-info fw-bold mb-3"><i class="fa-solid fa-robot me-2"></i>AI Response</h6>
+                        <div id="ragAnswerContent" class="text-light lh-base font-sans" style="white-space: pre-line;"></div>
+                    </div>
+
+                    <div id="ragSourcesContainer">
+                        <h6 class="text-muted fw-bold mb-2"><i class="fa-solid fa-book me-2"></i>Source Papers Used</h6>
+                        <div id="ragSourcesList" class="d-flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="rec-tab-pane" role="tabpanel" tabindex="0">
+        <div class="card shadow-lg border-0 mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="fw-bold mb-1"><i class="fa-solid fa-compass text-warning me-2"></i>Personalized Recommendations</h5>
+                        <p class="text-muted fs-7 mb-0">{{ recommendations.message }}</p>
+                    </div>
+                    <button class="btn btn-outline-warning btn-sm" onclick="location.reload()">
+                        <i class="fa-solid fa-rotate me-1"></i>Refresh Engine
+                    </button>
+                </div>
+
+                {% if recommendations.personalized and recommendations.recommendations %}
+                <div class="row g-4 mt-2">
+                    {% for rec in recommendations.recommendations %}
+                    <div class="col-md-6">
+                        <div class="card shadow-sm h-100 bg-secondary border-0">
+                            <div class="card-body p-4 d-flex flex-column justify-content-between">
+                                <div>
+                                    <span class="badge bg-warning text-dark mb-2">Recommended</span>
+                                    <h6 class="fw-bold text-light mb-2">{{ rec.title }}</h6>
+                                    <p class="text-muted fs-7 mb-2">{{ rec.authors or 'Authors not listed' }}</p>
+                                    <small class="text-info d-block mb-3">{{ rec.journal or '' }} ({{ rec.publication_year or '' }})</small>
+                                </div>
+                                <form method="POST" action="{{ url_for('search.save_paper') }}">
+                                    <input type="hidden" name="title" value="{{ rec.title }}">
+                                    <input type="hidden" name="authors" value="{{ rec.authors }}">
+                                    <input type="hidden" name="journal" value="{{ rec.journal }}">
+                                    <input type="hidden" name="publication_year" value="{{ rec.publication_year or '' }}">
+                                    <input type="hidden" name="doi" value="{{ rec.doi }}">
+                                    <input type="hidden" name="url" value="{{ rec.url }}">
+                                    <input type="hidden" name="abstract" value="{{ rec.abstract }}">
+                                    <button type="submit" class="btn btn-outline-success btn-sm w-100">
+                                        <i class="fa-solid fa-bookmark me-1"></i>Add to Personal Library
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="p-5 text-center text-muted">
+                    <i class="fa-solid fa-lightbulb fs-1 opacity-50 mb-3"></i>
+                    <p>{{ recommendations.message }}</p>
+                    <a href="{{ url_for('papers.create') }}" class="btn btn-primary btn-sm">Add Papers to Library</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="summarize-tab-pane" role="tabpanel" tabindex="0">
+        <div class="card shadow-lg border-0">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-3"><i class="fa-solid fa-list-check text-primary me-2"></i>Select Paper for AI Operations</h5>
+
+                {% if papers %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Paper Title</th>
+                                <th>Journal / Year</th>
+                                <th class="text-end">AI Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in papers %}
+                            <tr>
+                                <td class="fw-bold">{{ p.title }}</td>
+                                <td>{{ p.journal or 'N/A' }} ({{ p.publication_year or 'N/A' }})</td>
+                                <td class="text-end">
+                                    <form method="POST" action="{{ url_for('ai.summarize', paper_id=p.id) }}" class="d-inline me-1">
+                                        <button type="submit" class="btn btn-info btn-sm">
+                                            <i class="fa-solid fa-align-left me-1"></i>Summarize
+                                        </button>
+                                    </form>
+                                    <a href="{{ url_for('papers.detail', paper_id=p.id) }}" class="btn btn-outline-primary btn-sm">
+                                        <i class="fa-solid fa-quote-right me-1"></i>Citation
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-4 text-center text-muted">
+                    No papers in library to summarize. <a href="{{ url_for('papers.create') }}">Add a paper</a>.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function askRAGQuestion() {
+    const question = document.getElementById('ragQuestionInput').value.trim();
+    if (!question) return;
+    
+    const submitBtn = document.getElementById('ragSubmitBtn');
+    const resultArea = document.getElementById('ragResultArea');
+    const answerContent = document.getElementById('ragAnswerContent');
+    const sourcesList = document.getElementById('ragSourcesList');
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Searching...';
+    
+    fetch('/ai/ask', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ question: question })
+    })
+    .then(res => res.json())
+    .then(data => {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i>Ask AI';
+        
+        answerContent.innerText = data.answer || "No response received.";
+        sourcesList.innerHTML = '';
+        
+        if (data.sources && data.sources.length > 0) {
+            data.sources.forEach(src => {
+                const badge = document.createElement('a');
+                badge.href = `/papers/${src.id}`;
+                badge.className = 'badge bg-secondary border text-decoration-none text-light p-2';
+                badge.innerHTML = `<i class="fa-solid fa-book me-1"></i>${src.title} (${src.year || 'N/A'}) [Score: ${src.score.toFixed(2)}]`;
+                sourcesList.appendChild(badge);
+            });
+        } else {
+            sourcesList.innerHTML = '<span class="text-muted fs-7">No relevant source papers found.</span>';
+        }
+        
+        resultArea.classList.remove('d-none');
+    })
+    .catch(err => {
+        console.error(err);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i>Ask AI';
+        alert('Error performing RAG query.');
+    });
+}
+</script>
+{% endblock %}

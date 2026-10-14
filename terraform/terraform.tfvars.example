@@ -1,0 +1,7 @@
+aws_region       = "us-east-1"
+environment      = "production"
+vpc_cidr         = "10.0.0.0/16"
+db_name          = "research_tracker_db"
+db_username      = "tracker_admin"
+db_password      = "ChangeMeToSecurePassword123!"
+eks_cluster_name = "journal-tracker-eks"

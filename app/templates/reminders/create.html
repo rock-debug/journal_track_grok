@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}New Reminder - Journal & Patent Tracker{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0"><i class="fa-solid fa-plus-circle text-warning me-2"></i>New Reminder</h2>
+            <a href="{{ url_for('reminders.index') }}" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-arrow-left me-1"></i>Back to Reminders</a>
+        </div>
+
+        <div class="card shadow-lg border-0 rounded-3">
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('reminders.create') }}">
+                    <div class="mb-3">
+                        <label for="title" class="form-label fw-bold">Title / Event <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control bg-dark text-light border-dark" id="title" name="title" placeholder="e.g. Submit Conference Camera-Ready Paper" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="reminder_date" class="form-label fw-bold">Due Date & Time <span class="text-danger">*</span></label>
+                        <input type="datetime-local" class="form-control bg-dark text-light border-dark" id="reminder_date" name="reminder_date" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="description" class="form-label">Description (Optional)</label>
+                        <textarea class="form-control bg-dark text-light border-dark" id="description" name="description" rows="4" placeholder="Additional details or links..."></textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('reminders.index') }}" class="btn btn-outline-secondary px-4">Cancel</a>
+                        <button type="submit" class="btn btn-warning px-4"><i class="fa-solid fa-save me-1"></i>Save Reminder</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

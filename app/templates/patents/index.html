@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}Patents - Journal & Patent Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1"><i class="fa-solid fa-lightbulb text-info me-2"></i>Patent Management</h2>
+        <p class="text-muted mb-0">Track and manage intellectual property patents.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('patents.create') }}" class="btn btn-info"><i class="fa-solid fa-plus me-1"></i>Add Patent</a>
+        <a href="{{ url_for('export.export_patents') }}" class="btn btn-outline-success"><i class="fa-solid fa-file-csv me-1"></i>Export CSV</a>
+    </div>
+</div>
+
+<div class="card mb-4 border-0 bg-secondary shadow-sm">
+    <div class="card-body py-3">
+        <form method="GET" action="{{ url_for('patents.index') }}" class="row g-3">
+            <div class="col-md-10">
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-dark text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    <input type="text" class="form-control bg-dark text-light border-dark" name="q" value="{{ query }}" placeholder="Search patent title, number, or description...">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-info w-100">Search</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        {% if patents %}
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead class="table-secondary">
+                    <tr>
+                        <th style="width: 35%;">Title</th>
+                        <th style="width: 20%;">Patent Number</th>
+                        <th style="width: 15%;">Filing Date</th>
+                        <th style="width: 15%;">Pub Date</th>
+                        <th style="width: 15%;" class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pat in patents %}
+                    <tr>
+                        <td>
+                            <div class="fw-bold text-light">{{ pat.title }}</div>
+                            <small class="text-muted text-truncate d-inline-block" style="max-width: 320px;">
+                                {{ pat.description or 'No description' }}
+                            </small>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary border fs-7">{{ pat.patent_number or 'N/A' }}</span>
+                        </td>
+                        <td><small class="text-muted">{{ pat.filing_date or 'N/A' }}</small></td>
+                        <td><small class="text-muted">{{ pat.publication_date or 'N/A' }}</small></td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('patents.edit', patent_id=pat.id) }}" class="btn btn-outline-info" title="Edit">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </a>
+                                {% if pat.url %}
+                                <a href="{{ pat.url }}" target="_blank" class="btn btn-outline-light" title="External URL">
+                                    <i class="fa-solid fa-external-link"></i>
+                                </a>
+                                {% endif %}
+                                <form method="POST" action="{{ url_for('patents.delete', patent_id=pat.id) }}" class="d-inline" onsubmit="return confirm('Delete patent record?');">
+                                    <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fa-solid fa-lightbulb fs-1 text-muted opacity-50 mb-3"></i>
+            <h5>No Patents Found</h5>
+            <p class="text-muted">Start tracking your patents by adding a new record.</p>
+            <a href="{{ url_for('patents.create') }}" class="btn btn-info btn-sm"><i class="fa-solid fa-plus me-1"></i>Add Patent</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

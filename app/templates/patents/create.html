@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Patent - Journal & Patent Tracker{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0"><i class="fa-solid fa-plus-circle text-info me-2"></i>Add Patent Record</h2>
+            <a href="{{ url_for('patents.index') }}" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-arrow-left me-1"></i>Back to Patents</a>
+        </div>
+
+        <div class="card shadow-lg border-0 rounded-3">
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('patents.create') }}">
+                    <div class="mb-3">
+                        <label for="title" class="form-label fw-bold">Patent Title <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="title" name="title" placeholder="e.g. Quantum Neural Network Circuit Architecture" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="patent_number" class="form-label">Patent Number</label>
+                        <input type="text" class="form-control" id="patent_number" name="patent_number" placeholder="e.g. US 11,234,567 B2">
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="filing_date" class="form-label">Filing Date</label>
+                            <input type="date" class="form-control" id="filing_date" name="filing_date">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="publication_date" class="form-label">Publication / Issue Date</label>
+                            <input type="date" class="form-control" id="publication_date" name="publication_date">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="url" class="form-label">URL Link</label>
+                        <input type="url" class="form-control" id="url" name="url" placeholder="https://patents.google.com/patent/US11234567B2/en">
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="description" class="form-label">Description / Abstract</label>
+                        <textarea class="form-control" id="description" name="description" rows="5" placeholder="Summary of patent scope and claims..."></textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('patents.index') }}" class="btn btn-outline-secondary px-4">Cancel</a>
+                        <button type="submit" class="btn btn-info px-4"><i class="fa-solid fa-save me-1"></i>Save Patent</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

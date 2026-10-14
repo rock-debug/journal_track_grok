@@ -1,24 +1,19 @@
-output "instance_public_ip" {
-  description = "Public IP of the EC2 instance"
-  value       = aws_instance.app_server.public_ip
+output "vpc_id" {
+  description = "ID of the AWS VPC"
+  value       = aws_vpc.main.id
 }
 
-output "ssh_command" {
-  description = "Command to SSH into the instance"
-  value       = "ssh -i journal-tracker-key.pem ubuntu@${aws_instance.app_server.public_ip}"
+output "eks_cluster_name" {
+  description = "Name of the EKS cluster"
+  value       = aws_eks_cluster.main.name
 }
 
-output "flask_app_url" {
-  description = "URL to access the Flask Application"
-  value       = "http://${aws_instance.app_server.public_ip}:5000"
+output "eks_cluster_endpoint" {
+  description = "Endpoint of the EKS cluster"
+  value       = aws_eks_cluster.main.endpoint
 }
 
-output "grafana_url" {
-  description = "URL to access Grafana"
-  value       = "http://${aws_instance.app_server.public_ip}:3000"
-}
-
-output "jenkins_url" {
-  description = "URL to access Jenkins"
-  value       = "http://${aws_instance.app_server.public_ip}:8080"
+output "rds_endpoint" {
+  description = "Database connection endpoint for RDS PostgreSQL"
+  value       = aws_db_instance.postgres.endpoint
 }

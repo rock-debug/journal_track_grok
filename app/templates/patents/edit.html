@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Patent - {{ patent.title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0"><i class="fa-solid fa-pen-to-square text-info me-2"></i>Edit Patent</h2>
+            <a href="{{ url_for('patents.index') }}" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-arrow-left me-1"></i>Cancel</a>
+        </div>
+
+        <div class="card shadow-lg border-0 rounded-3 mb-4">
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('patents.edit', patent_id=patent.id) }}">
+                    <div class="mb-3">
+                        <label for="title" class="form-label fw-bold">Patent Title <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="title" name="title" value="{{ patent.title }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="patent_number" class="form-label">Patent Number</label>
+                        <input type="text" class="form-control" id="patent_number" name="patent_number" value="{{ patent.patent_number or '' }}">
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="filing_date" class="form-label">Filing Date</label>
+                            <input type="date" class="form-control" id="filing_date" name="filing_date" value="{{ patent.filing_date or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="publication_date" class="form-label">Publication / Issue Date</label>
+                            <input type="date" class="form-control" id="publication_date" name="publication_date" value="{{ patent.publication_date or '' }}">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="url" class="form-label">URL Link</label>
+                        <input type="url" class="form-control" id="url" name="url" value="{{ patent.url or '' }}">
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="description" class="form-label">Description / Abstract</label>
+                        <textarea class="form-control" id="description" name="description" rows="5">{{ patent.description or '' }}</textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('patents.index') }}" class="btn btn-outline-secondary px-4">Cancel</a>
+                        <button type="submit" class="btn btn-info px-4"><i class="fa-solid fa-save me-1"></i>Update Patent</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-secondary fw-bold">
+                <i class="fa-solid fa-note-sticky text-warning me-2"></i>Patent Notes & Annotations
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('notes.create') }}" class="mb-3">
+                    <input type="hidden" name="patent_id" value="{{ patent.id }}">
+                    <div class="mb-2">
+                        <textarea name="content" class="form-control bg-dark text-light border-dark" rows="3" placeholder="Add note about this patent..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-warning btn-sm float-end"><i class="fa-solid fa-plus me-1"></i>Add Note</button>
+                    <div class="clearfix"></div>
+                </form>
+
+                {% if notes %}
+                <div class="d-flex flex-column gap-2 mt-3">
+                    {% for n in notes %}
+                    <div class="p-3 bg-dark rounded border border-dark-subtle">
+                        <div class="d-flex justify-content-between text-muted fs-7 mb-1">
+                            <span>{{ n.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            <form method="POST" action="{{ url_for('notes.delete', note_id=n.id) }}" class="d-inline">
+                                <button type="submit" class="btn btn-link btn-sm text-danger p-0 text-decoration-none fs-7"><i class="fa-solid fa-trash me-1"></i>Delete</button>
+                            </form>
+                        </div>
+                        <div>{{ n.content }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-2 mb-0 fs-7">No notes linked to this patent.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

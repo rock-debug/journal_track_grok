@@ -1,0 +1,472 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: research-tracker
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+      evaluation_interval: 5s
+
+    scrape_configs:
+      - job_name: 'tracker-web'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['tracker-service.research-tracker.svc.cluster.local:80']
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-deployment
+  namespace: research-tracker
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.50.0
+        args:
+          - "--config.file=/etc/prometheus/prometheus.yml"
+          - "--storage.tsdb.path=/prometheus"
+        ports:
+        - containerPort: 9090
+          name: http
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/prometheus
+      volumes:
+      - name: config-volume
+        configMap:
+          name: prometheus-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-service
+  namespace: research-tracker
+  labels:
+    app: prometheus
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: http
+  selector:
+    app: prometheus
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: research-tracker
+data:
+  loki-config.yaml: |
+    auth_enabled: false
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9096
+    common:
+      path_prefix: /tmp/loki
+      storage:
+        filesystem:
+          chunks_directory: /tmp/loki/chunks
+          rules_directory: /tmp/loki/rules
+      replication_factor: 1
+      ring:
+        kvstore:
+          store: inmemory
+    schema_config:
+      configs:
+        - from: 2020-05-15
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki-deployment
+  namespace: research-tracker
+  labels:
+    app: loki
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+    spec:
+      containers:
+      - name: loki
+        image: grafana/loki:2.9.4
+        args:
+          - "-config.file=/etc/loki/loki-config.yaml"
+        ports:
+        - containerPort: 3100
+          name: http
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/loki
+      volumes:
+      - name: config-volume
+        configMap:
+          name: loki-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki-service
+  namespace: research-tracker
+  labels:
+    app: loki
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3100
+    targetPort: 3100
+    protocol: TCP
+    name: http
+  selector:
+    app: loki
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: promtail-sa
+  namespace: research-tracker
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: promtail-cluster-role
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/proxy
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "watch", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: promtail-cluster-binding
+subjects:
+- kind: ServiceAccount
+  name: promtail-sa
+  namespace: research-tracker
+roleRef:
+  kind: ClusterRole
+  name: promtail-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: research-tracker
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+    positions:
+      filename: /tmp/positions.yaml
+    clients:
+      - url: http://loki-service.research-tracker.svc.cluster.local:3100/loki/api/v1/push
+    scrape_configs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: __host__
+          - action: replace
+            source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - action: replace
+            source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - action: replace
+            source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - replacement: /var/log/pods/*$1/*.log
+            separator: /
+            source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
+            target_label: __path__
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail-daemonset
+  namespace: research-tracker
+  labels:
+    app: promtail
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+      serviceAccountName: promtail-sa
+      containers:
+      - name: promtail
+        image: grafana/promtail:2.9.4
+        args:
+          - "-config.file=/etc/promtail/promtail.yaml"
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/promtail
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+      volumes:
+      - name: config-volume
+        configMap:
+          name: promtail-config
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: research-tracker
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus-service.research-tracker.svc.cluster.local:9090
+        isDefault: true
+        editable: true
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki-service.research-tracker.svc.cluster.local:3100
+        editable: true
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  namespace: research-tracker
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-data
+  namespace: research-tracker
+data:
+  journal_tracker.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": 1,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "title": "Flask HTTP Request Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "rate(flask_http_request_total[5m])",
+              "legendFormat": "{{method}} {{status}}"
+            }
+          ]
+        },
+        {
+          "title": "Total Requests by Path",
+          "type": "bargauge",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum by (path) (flask_http_request_total)",
+              "legendFormat": "{{path}}"
+            }
+          ]
+        },
+        {
+          "title": "Application P95 Response Latency",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(flask_http_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p95 Latency"
+            }
+          ]
+        },
+        {
+          "title": "Application Health (1=Healthy)",
+          "type": "stat",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "app_info{version=\"1.0.0\"}",
+              "legendFormat": "App Version 1.0.0"
+            }
+          ]
+        }
+      ],
+      "refresh": "5s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["flask", "metrics", "aws"],
+      "time": { "from": "now-15m", "to": "now" },
+      "title": "Journal & Patent Tracker - AWS Cloud Overview"
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana-deployment
+  namespace: research-tracker
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:10.3.3
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin"
+        - name: GF_SECURITY_ADMIN_USER
+          value: "admin"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        volumeMounts:
+        - name: datasources-volume
+          mountPath: /etc/grafana/provisioning/datasources
+        - name: dashboards-provider-volume
+          mountPath: /etc/grafana/provisioning/dashboards
+        - name: dashboards-volume
+          mountPath: /var/lib/grafana/dashboards
+      volumes:
+      - name: datasources-volume
+        configMap:
+          name: grafana-datasources
+      - name: dashboards-provider-volume
+        configMap:
+          name: grafana-dashboards-provider
+      - name: dashboards-volume
+        configMap:
+          name: grafana-dashboard-data
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-service
+  namespace: research-tracker
+  labels:
+    app: grafana
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: grafana

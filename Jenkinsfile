@@ -2,70 +2,98 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = 'rockdebug/journal-tracker'
-        DOCKER_TAG   = 'latest'
-        KUBECONFIG   = '/var/lib/jenkins/kubeconfig'
+        DOCKER_IMAGE = 'journal-tracker'
+        REGISTRY_CREDENTIALS_ID = 'docker-hub-credentials'
+        AWS_CREDENTIALS_ID = 'aws-credentials'
+        GROQ_API_KEY = credentials('groq-api-key')
+        KUBECONFIG_ID = 'kubeconfig-eks'
     }
 
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
-                sh 'echo "--- Repository checked out successfully ---" && ls -la'
             }
         }
 
-        stage('Test & Lint') {
+        stage('Install Dependencies') {
             steps {
                 sh '''
-                echo "Running test suite..."
-                echo "All tests passed: 0 failures, 0 errors"
-                echo "Lint check: No issues found"
+                    python -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
                 '''
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+                    pip install flake8
+                    flake8 app/ tests/ --count --max-line-length=120 --statistics || true
+                '''
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+                    python -m pytest --junitxml=test-results.xml
+                '''
+            }
+            post {
+                always {
+                    junit 'test-results.xml'
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                echo "Building production Docker image: $DOCKER_IMAGE:$DOCKER_TAG"
-                docker build -t $DOCKER_IMAGE:$DOCKER_TAG .
-                docker images | grep $DOCKER_IMAGE
-                '''
+                sh 'docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .'
+                sh 'docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest'
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                sh '''
-                echo "Pushing Docker image to Docker Hub..."
-                docker push $DOCKER_IMAGE:$DOCKER_TAG
-                '''
+                script {
+                    docker.withRegistry('', REGISTRY_CREDENTIALS_ID) {
+                        docker.image("${DOCKER_IMAGE}:${BUILD_NUMBER}").push()
+                        docker.image("${DOCKER_IMAGE}:latest").push()
+                    }
+                }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh '''
-                echo "Deploying infrastructure declaratively to K3s Kubernetes cluster"
-                kubectl get nodes
-                
-                # Apply all Kubernetes manifests (Deployment, Service, Ingress)
-                kubectl apply -f k8s/
-                
-                # Dynamically set the Docker image so it pulls the freshly built one
-                kubectl set image deployment/journal-tracker-deployment journal-tracker=$DOCKER_IMAGE:$DOCKER_TAG
-                
-                kubectl rollout status deployment/journal-tracker-deployment --timeout=60s
-                kubectl get pods -l app=journal-tracker
-                '''
+                withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
+                    sh '''
+                        kubectl apply -f k8s/namespace.yaml
+                        kubectl apply -f k8s/configmap.yaml
+                        kubectl apply -f k8s/secret.yaml
+                        kubectl apply -f k8s/deployment.yaml
+                        kubectl apply -f k8s/service.yaml
+                        kubectl apply -f k8s/ingress.yaml
+                        kubectl apply -f k8s/hpa.yaml
+                        kubectl set image deployment/tracker-web tracker-container=${DOCKER_IMAGE}:${BUILD_NUMBER} -n research-tracker
+                        kubectl rollout status deployment/tracker-web -n research-tracker
+                    '''
+                }
             }
         }
     }
-    
+
     post {
-        always {
-            cleanWs()
+        success {
+            echo 'CI/CD Pipeline Completed Successfully!'
+        }
+        failure {
+            echo 'Pipeline failed. Please inspect build logs.'
         }
     }
 }

@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ paper.title }} - Research Details{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('papers.index') }}" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-arrow-left me-1"></i>Back to Papers</a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h3 class="fw-bold text-light mb-0">{{ paper.title }}</h3>
+                    <div class="btn-group btn-group-sm">
+                        <a href="{{ url_for('papers.edit', paper_id=paper.id) }}" class="btn btn-outline-primary"><i class="fa-solid fa-pen-to-square me-1"></i>Edit</a>
+                        <form method="POST" action="{{ url_for('papers.delete', paper_id=paper.id) }}" class="d-inline" onsubmit="return confirm('Delete this paper?');">
+                            <button type="submit" class="btn btn-outline-danger"><i class="fa-solid fa-trash me-1"></i>Delete</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="mb-3 fs-6">
+                    <span class="text-primary me-3"><i class="fa-solid fa-users me-1"></i>{{ paper.authors or 'Authors not listed' }}</span>
+                    {% if paper.journal %}
+                    <span class="text-muted me-3"><i class="fa-solid fa-journal-whills me-1"></i>{{ paper.journal }}</span>
+                    {% endif %}
+                    {% if paper.publication_year %}
+                    <span class="badge bg-secondary me-2">{{ paper.publication_year }}</span>
+                    {% endif %}
+                    {% if paper.status == 'Completed' %}
+                    <span class="badge bg-success">Completed</span>
+                    {% elif paper.status == 'Reading' %}
+                    <span class="badge bg-warning text-dark">Reading</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Unread</span>
+                    {% endif %}
+                </div>
+
+                {% if paper.doi or paper.url %}
+                <div class="mb-4 d-flex gap-2">
+                    {% if paper.doi %}
+                    <a href="https://doi.org/{{ paper.doi }}" target="_blank" class="btn btn-outline-info btn-sm">
+                        <i class="fa-solid fa-link me-1"></i>DOI: {{ paper.doi }}
+                    </a>
+                    {% endif %}
+                    {% if paper.url %}
+                    <a href="{{ paper.url }}" target="_blank" class="btn btn-outline-light btn-sm">
+                        <i class="fa-solid fa-external-link me-1"></i>Full Text / URL
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if paper.keywords %}
+                <div class="mb-4">
+                    <h6 class="text-muted text-uppercase fs-7 fw-bold mb-2">Keywords</h6>
+                    <div>
+                        {% for tag in paper.keywords.split(',') %}
+                        <span class="badge bg-dark border me-1 mb-1">{{ tag.strip() }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="mb-4">
+                    <h6 class="text-muted text-uppercase fs-7 fw-bold mb-2">Abstract</h6>
+                    <div class="p-3 bg-dark rounded border border-secondary-subtle text-light lh-base">
+                        {{ paper.abstract or 'No abstract provided for this paper.' }}
+                    </div>
+                </div>
+
+                {% if ai_summary %}
+                <div class="mb-4">
+                    <h6 class="text-info text-uppercase fs-7 fw-bold mb-2"><i class="fa-solid fa-robot me-1"></i>AI Generated Summary</h6>
+                    <div class="p-4 bg-secondary border border-info rounded text-light shadow-sm">
+                        <div class="markdown-body">
+                            {{ ai_summary | replace('\n', '<br>') | safe }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-secondary d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold"><i class="fa-solid fa-note-sticky text-warning me-2"></i>Attached Notes</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('notes.create') }}" class="mb-4">
+                    <input type="hidden" name="paper_id" value="{{ paper.id }}">
+                    <div class="mb-2">
+                        <textarea name="content" class="form-control bg-dark text-light border-dark" rows="3" placeholder="Add a research note or annotation about this paper..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-warning btn-sm float-end"><i class="fa-solid fa-plus me-1"></i>Add Note</button>
+                    <div class="clearfix"></div>
+                </form>
+
+                {% if notes %}
+                <div class="d-flex flex-column gap-3">
+                    {% for n in notes %}
+                    <div class="p-3 bg-dark rounded border border-dark-subtle position-relative">
+                        <div class="d-flex justify-content-between text-muted fs-7 mb-2">
+                            <span><i class="fa-solid fa-clock me-1"></i>{{ n.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            <form method="POST" action="{{ url_for('notes.delete', note_id=n.id) }}" class="d-inline" onsubmit="return confirm('Delete note?');">
+                                <button type="submit" class="btn btn-link btn-sm text-danger p-0 text-decoration-none fs-7"><i class="fa-solid fa-trash me-1"></i>Delete</button>
+                            </form>
+                        </div>
+                        <div class="text-light">{{ n.content }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-3 mb-0 fs-7">No notes linked to this paper yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-4 border-info">
+            <div class="card-header bg-info bg-opacity-10 text-info fw-bold">
+                <i class="fa-solid fa-wand-magic-sparkles me-2"></i>AI Features
+            </div>
+            <div class="card-body d-grid gap-3">
+                <form method="POST" action="{{ url_for('ai.summarize', paper_id=paper.id) }}">
+                    <button type="submit" class="btn btn-info w-100 py-2">
+                        <i class="fa-solid fa-align-left me-2"></i>Generate AI Summary
+                    </button>
+                </form>
+
+                <button type="button" class="btn btn-outline-info w-100 py-2" data-bs-toggle="modal" data-bs-target="#citationModal">
+                    <i class="fa-solid fa-quote-right me-2"></i>Generate Citation
+                </button>
+            </div>
+        </div>
+
+        <div class="card shadow-sm bg-secondary">
+            <div class="card-body">
+                <h6 class="fw-bold mb-2"><i class="fa-solid fa-circle-info text-primary me-2"></i>Quick Metadata</h6>
+                <ul class="list-unstyled text-muted fs-7 mb-0">
+                    <li class="mb-2"><strong>Added:</strong> {{ paper.created_at.strftime('%Y-%m-%d') }}</li>
+                    <li class="mb-2"><strong>Notes Count:</strong> {{ notes | length }}</li>
+                    <li><strong>DOI Verified:</strong> {% if paper.doi %}Yes{% else %}No{% endif %}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="citationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-secondary text-light">
+            <div class="modal-header border-dark-subtle">
+                <h5 class="modal-title fw-bold"><i class="fa-solid fa-quote-right me-2 text-info"></i>Citation Generator</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Select Citation Style:</label>
+                    <select class="form-select bg-dark text-light border-dark" id="citationStyleSelect">
+                        <option value="APA" selected>APA (American Psychological Association)</option>
+                        <option value="MLA">MLA (Modern Language Association)</option>
+                        <option value="IEEE">IEEE (Institute of Electrical and Electronics Engineers)</option>
+                        <option value="BibTeX">BibTeX (TeX/LaTeX format)</option>
+                    </select>
+                </div>
+                <button type="button" class="btn btn-primary w-100 mb-3" onclick="generateCitationAjax({{ paper.id }})">
+                    Generate Format
+                </button>
+
+                <div id="citationOutputBox" class="p-3 bg-dark rounded border border-dark-subtle d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="badge bg-info text-dark" id="citationStyleBadge">APA</span>
+                        <button type="button" class="btn btn-sm btn-outline-light" onclick="copyToClipboard('citationText')">
+                            <i class="fa-solid fa-copy me-1"></i>Copy
+                        </button>
+                    </div>
+                    <p id="citationText" class="mb-0 fs-7 text-light font-monospace"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function generateCitationAjax(paperId) {
+    const style = document.getElementById('citationStyleSelect').value;
+    const outputBox = document.getElementById('citationOutputBox');
+    const textElem = document.getElementById('citationText');
+    const badgeElem = document.getElementById('citationStyleBadge');
+    
+    fetch(`/ai/citation/${paperId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ style: style })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            badgeElem.innerText = data.style;
+            textElem.innerText = data.citation;
+            outputBox.classList.remove('d-none');
+        } else {
+            alert('Failed to generate citation.');
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Error generating citation.');
+    });
+}
+</script>
+{% endblock %}
